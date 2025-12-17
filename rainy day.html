@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Raindrop Sprinters - All Devices</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #2c3e50;
+            color: white;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+        }
+        canvas {
+            background: linear-gradient(#1a2a6c, #b21f1f, #fdbb2d);
+            border: 2px solid #ecf0f1;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            max-width: 95vw;
+            max-height: 90vh;
+            cursor: pointer;
+        }
+        #ui {
+            position: absolute;
+            text-align: center;
+            pointer-events: none;
+            user-select: none;
+        }
+        .message {
+            font-size: clamp(24px, 6vw, 48px);
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        .sub-message {
+            font-size: clamp(14px, 3vw, 20px);
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div id="msg" class="message">CLICK / TOUCH TO START</div>
+        <div id="sub-msg" class="sub-message">Left side to go Left / Right side to go Right</div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const msg = document.getElementById('msg');
+    const subMsg = document.getElementById('sub-msg');
+    
+    canvas.width = 800;
+    canvas.height = 400;
+    
+    let gameActive = false;
+    
+    const cat = {
+        x: 50,
+        y: 350,
+        width: 40,
+        height: 30,
+        speed: 7,
+        color: '#222222'
+    };
+
+    let raindrops = [];
+    const rainFrequency = 0.2;
+
+    const input = { left: false, right: false };
+
+    // --- 操作ロジック ---
+    const startMove = (e) => {
+        if (!gameActive) {
+            resetGame();
+            return;
+        }
+        const rect = canvas.getBoundingClientRect();
+        // マウスとタッチの両方の座標取得に対応
+        const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+        const touchX = (clientX - rect.left) * (canvas.width / rect.width);
+
+        if (touchX < canvas.width / 2) {
+            input.left = true;
+            input.right = false;
+        } else {
+            input.right = true;
+            input.left = false;
+        }
+    };
+
+    const stopMove = () => {
+        input.left = false;
+        input.right = false;
+    };
+
+    // キーボード操作
+    window.addEventListener('keydown', e => {
+        if(e.code === 'ArrowLeft') input.left = true;
+        if(e.code === 'ArrowRight') input.right = true;
+    });
+    window.addEventListener('keyup', e => {
+        if(e.code === 'ArrowLeft') input.left = false;
+        if(e.code === 'ArrowRight') input.right = false;
+    });
+
+    // マウス・タッチ共通イベント
+    canvas.addEventListener('mousedown', startMove);
+    window.addEventListener('mouseup', stopMove);
+    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startMove(e); }, {passive: false});
+    window.addEventListener('touchend', stopMove);
+    canvas.addEventListener('mouseleave', stopMove);
+
+    function spawnRaindrop() {
+        if (Math.random() < rainFrequency) {
+            raindrops.push({
+                x: Math.random() * canvas.width,
+                y: -10,
+                width: 3,
+                height: 15,
+                speed: 5 + Math.random() * 7
+            });
+        }
+    }
+
+    function update() {
+        if (!gameActive) return;
+
+        if (input.right) cat.x += cat.speed;
+        if (input.left) cat.x -= cat.speed;
+
+        if (cat.x < 0) cat.x = 0;
+        if (cat.x + cat.width > canvas.width) gameClear();
+
+        spawnRaindrop();
+        for (let i = raindrops.length - 1; i >= 0; i--) {
+            let r = raindrops[i];
+            r.y += r.speed;
+
+            if (r.x < cat.x + cat.width &&
+                r.x + r.width > cat.x &&
+                r.y < cat.y + cat.height &&
+                r.y + r.height > cat.y) {
+                gameOver();
+            }
+            if (r.y > canvas.height) raindrops.splice(i, 1);
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 地面
+        ctx.fillStyle = '#34495e';
+        ctx.fillRect(0, 380, canvas.width, 20);
+
+        // 黒猫
+        ctx.fillStyle = cat.color;
+        ctx.fillRect(cat.x, cat.y, cat.width, cat.height);
+        // 耳
+        ctx.beginPath();
+        ctx.moveTo(cat.x, cat.y); ctx.lineTo(cat.x + 8, cat.y - 12); ctx.lineTo(cat.x + 15, cat.y); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(cat.x + cat.width, cat.y); ctx.lineTo(cat.x + cat.width - 8, cat.y - 12); ctx.lineTo(cat.x + cat.width - 15, cat.y); ctx.fill();
+        // 目
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillRect(cat.x + cat.width - 12, cat.y + 8, 4, 4);
+
+        // 雨
+        ctx.fillStyle = 'rgba(174, 214, 241, 0.8)';
+        raindrops.forEach(r => ctx.fillRect(r.x, r.y, r.width, r.height));
+    }
+
+    function gameClear() {
+        gameActive = false;
+        input.left = input.right = false;
+        msg.innerHTML = `<span style="color: #f1c40f;">GAME CLEAR!</span>`;
+        subMsg.innerHTML = `The black cat reached the goal!<br>Click / Touch to Restart`;
+    }
+
+    function gameOver() {
+        gameActive = false;
+        input.left = input.right = false;
+        msg.innerHTML = `SOAKED...`;
+        subMsg.innerHTML = `Game Over<br>Click / Touch to Retry`;
+    }
+
+    function resetGame() {
+        cat.x = 20;
+        raindrops = [];
+        gameActive = true;
+        msg.innerText = "";
+        subMsg.innerText = "";
+    }
+
+    function loop() {
+        update();
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    loop();
+</script>
+</body>
+</html>
